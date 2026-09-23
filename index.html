@@ -105,6 +105,8 @@ body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,
 .hint{font-size:13px;color:var(--ink2);padding:0 32px}
 .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:110px;background:rgba(28,28,30,.9);color:#fff;font-size:13px;padding:8px 14px;border-radius:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
 .toast.on{opacity:1}
+.nudge{align-self:center;margin-bottom:auto;margin-top:4px;height:26px;display:flex;align-items:center;padding:0 12px;border-radius:13px;background:rgba(120,120,128,.14);color:var(--ink2);font-size:13px;visibility:hidden;pointer-events:none}
+.nudge.on{visibility:visible}
 pre.log{width:100%;max-width:760px;max-height:180px;overflow:auto;font:11px ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;margin:0;color:var(--ink2)}
 @media (max-width:500px){
 :root,html{padding:0!important}
@@ -138,6 +140,7 @@ body{padding:0!important;min-height:100dvh;height:100dvh;overflow:hidden}
     </div>
   </div>
   <div class="display">
+    <div class="nudge" id="nudge" aria-live="polite">Got your answer? Tap End task.</div>
     <div class="expr" id="expr" aria-live="off"><span></span></div>
     <div class="row2">
       <div class="badges">
@@ -210,9 +213,10 @@ function closeAll(list){ list.forEach(tok=>{ if(tok.t==='fn'||tok.t==='grp'){ to
 /* ---------------- evaluation ---------------- */
 const toRad = d => d*Math.PI/180;
 function fact(n){ if(n<0||Math.floor(n)!==n||n>170) return NaN; let r=1; for(let i=2;i<=n;i++) r*=i; return r; }
+const clean = v => (Math.abs(v)<1e-12 ? 0 : v);   // cos(90°) = 6e-17 in floating point → 0
 function applyFn(name,x){
   switch(name){
-    case 'sin': return Math.sin(toRad(x)); case 'cos': return Math.cos(toRad(x)); case 'tan': return Math.tan(toRad(x));
+    case 'sin': return clean(Math.sin(toRad(x))); case 'cos': return clean(Math.cos(toRad(x))); case 'tan': return clean(Math.tan(toRad(x)));
     case 'sinh': return Math.sinh(x); case 'cosh': return Math.cosh(x); case 'tanh': return Math.tanh(x);
     case 'ln': return Math.log(x); case 'log₁₀': return Math.log10(x); case '√x': return Math.sqrt(x); case '∛x': return Math.cbrt(x);
   } return NaN;
@@ -252,10 +256,11 @@ function evalList(list){ // treats open groups as closed; ignores trailing opera
 function fmt(v){
   if(v===null||v===undefined||Number.isNaN(v)) return '–';
   if(!isFinite(v)) return 'Error';
+  v = clean(v);
   let s = Math.abs(v)>=1e12||(Math.abs(v)<1e-9&&v!==0) ? v.toExponential(6) : String(+v.toPrecision(12));
   s = s.replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
-  const [i,d] = s.split('.'); const ii = i.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-  return (d!==undefined ? ii+','+d : ii).replace('-','−');
+  const [i,d] = s.split('.'); const ii = i.replace(/\B(?=(\d{3})+(?!\d))/g,',');   // v7: 1,234.5 (dot decimal for everyone)
+  return (d!==undefined ? ii+'.'+d : ii).replace('-','−');
 }
 
 /* ---------------- rendering (two renderers, one tree) ---------------- */
@@ -327,18 +332,18 @@ function press(key){
   if(S.afterEq && !['=','⌫'].includes(key)){
     // start new: digits start fresh, functions/ops/postfix reuse the result (A8)
     const reuse = PREFIX.includes(key) || ['+','−','×','÷','xʸ','x²','x³','¹⁄ₓ','x!','%'].includes(key);
-    S.expr = reuse ? [{t:'num', v: fmt(S.lastResult).replace(/\./g,'')}] : [];
+    S.expr = reuse ? [{t:'num', v: fmt(S.lastResult).replace(/,/g,'')}] : [];
     S.afterEq=false;
   }
   const cur = openPath(S.expr); const last = cur[cur.length-1];
   const D = /^[0-9]$/.test(key);
   if(S.probe && S.first===null){
-    if(D||key===','||key==='π'||key==='e'){ S.first='num'; log('probe_first',{kind:'num',key}); mark('first=num'); }
+    if(D||key==='.'||key==='π'||key==='e'){ S.first='num'; log('probe_first',{kind:'num',key}); mark('first=num'); }
     else if(PREFIX.includes(key)){ S.first='fn'; log('probe_first',{kind:'fn',key}); mark('first=fn'); }
   }
-  if(D || key===','){
-    if(last && last.t==='num'){ if(key===','){ if(!last.v.includes(',')) last.v+=','; } else last.v = (last.v==='0'&&key!=='0'&&!last.v.includes(','))? key : last.v+key; }
-    else { if(isTerm(last)) cur.push({t:'imul'}); cur.push({t:'num', v: key===','?'0,':key}); }
+  if(D || key==='.'){
+    if(last && last.t==='num'){ if(key==='.'){ if(!last.v.includes('.')) last.v+='.'; } else last.v = (last.v==='0'&&key!=='0'&&!last.v.includes('.'))? key : last.v+key; }
+    else { if(isTerm(last)) cur.push({t:'imul'}); cur.push({t:'num', v: key==='.'?'0.':key}); }
   }
   else if(key==='π'||key==='e'){ if(isTerm(last)) cur.push({t:'imul'}); cur.push({t:'const', v:key}); }
   else if(['+','−','×','÷'].includes(key)){
@@ -374,9 +379,9 @@ function press(key){
       }
     }
   }
-  else if(key==='ac'){ S.expr=[]; S.afterEq=false; S.lastValid=0; }
+  else if(key==='ac'){ S.expr=[]; S.afterEq=false; S.lastValid=0; document.getElementById('nudge').classList.remove('on'); }   // nudge hides on ac, returns on the next =
   else if(key==='='){
-    S.eqCount++;
+    S.eqCount++; if(P.nudge!=='0') document.getElementById('nudge').classList.add('on');   // neutral End-task nudge, shown after any =
     if(S.probe && S.first===null){ S.first='other'; log('probe_first',{kind:'other'}); mark('first=other'); }
     if(!S.expr.length) return;
     if(hasEmptySlot(S.expr)){ flash(); toast('Enter a number'); log('equals_refused_empty_slot',{before, n:S.eqCount}); return; }
@@ -399,7 +404,7 @@ function flash(){ const e=document.getElementById('expr'); e.classList.remove('f
 /* ---------------- keypad ---------------- */
 const SCI = [['(',')','mc','m+','m-','mr'],['⇧','x²','x³','xʸ','eˣ','10ˣ'],['¹⁄ₓ','√x','∛x','ʸ√x','ln','log₁₀'],['x!','sin','cos','tan','e','EE'],['Rand','sinh','cosh','tanh','π','Deg']];
 const INERT = new Set(['mc','m+','m-','mr','⇧','eˣ','10ˣ','ʸ√x','EE','Rand','Deg']);
-const MAIN = [[['ac','g s'],['⁺∕₋','g s'],['%','g s'],['÷','op']],[['7'],['8'],['9'],['×','op']],[['4'],['5'],['6'],['−','op']],[['1'],['2'],['3'],['+','op']],[['0'],[','],['⌫','s'],['=','op']]];
+const MAIN = [[['ac','g s'],['⁺∕₋','g s'],['%','g s'],['÷','op']],[['7'],['8'],['9'],['×','op']],[['4'],['5'],['6'],['−','op']],[['1'],['2'],['3'],['+','op']],[['0'],['.'],['⌫','s'],['=','op']]];
 function buildKeys(){
   const k=document.getElementById('keys'); let h='';
   SCI.forEach(r=>{ h+='<div class="krow">'+r.map(x=>`<button class="k${INERT.has(x)?' i':''}" data-k="${x}" aria-label="${aria(x)}">${x}</button>`).join('')+'</div>'; });
@@ -459,7 +464,7 @@ function openSettings(page){
       <div class="sgroup"><div class="srow only" style="pointer-events:none;color:#8E8E93">Choose Your Subscription Plan<span class="chev">›</span></div></div>
       <div class="sgroup">
         <div class="srow" style="pointer-events:none"><div>General Decimal Places<div class="sub">Default</div></div><span class="chev">›</span></div>
-        <div class="srow" style="pointer-events:none"><div>Decimal Notation<div class="sub">1.234.567,89</div></div><span class="chev">›</span></div>
+        <div class="srow" style="pointer-events:none"><div>Decimal Notation<div class="sub">1,234,567.89</div></div><span class="chev">›</span></div>
         <div class="srow" id="sFn"><div>Function Input<div class="sub">${LABEL[S.mode]}</div></div><span class="chev">›</span></div>
         <div class="srow" style="pointer-events:none"><div>Haptic Feedback</div><span class="chev">›</span></div>
       </div>`;
@@ -482,9 +487,10 @@ function closeSettings(){ const e=document.getElementById('settings'); if(e) e.r
    ?presel=fn|num   sheet preselection (default fn — the Remote Config candidate)
    ?probe=1         cold-probe diagnostic state: accepts both orders, renders as typed, pull-down hidden, writes #first=
    ?dev=0           hide the dev bar
+   ?nudge=0         hide the 'Got your answer? Tap End task.' nudge
    ?markq=0         write markers to the hash instead of query params (v5 default = query params) */
 const Q = new URLSearchParams(location.search);
-const P = { mode: Q.get('mode'), sheet: Q.get('sheet'), variant: Q.get('variant'), dev: Q.get('dev'), probe: Q.get('probe'), presel: Q.get('presel'), markq: Q.get('markq') };
+const P = { mode: Q.get('mode'), sheet: Q.get('sheet'), variant: Q.get('variant'), dev: Q.get('dev'), probe: Q.get('probe'), presel: Q.get('presel'), markq: Q.get('markq'), nudge: Q.get('nudge') };
 const MARK_KEYS = ['start','first','res','n','m','via','pick'];   // 'mode' and 'sheet' are config, never markers
 function storeMode(m){ try{ localStorage.setItem('tc_mode', m); }catch(e){} }
 function storedMode(){ try{ const m=localStorage.getItem('tc_mode'); return (m==='fn'||m==='num')?m:null; }catch(e){ return null; } }
@@ -508,10 +514,10 @@ document.getElementById('devToggleLog').addEventListener('click',e=>{ const v=do
 function reset(){
   closeMenu(); closeSettings(); ['scrim','sheet'].forEach(id=>{const e=document.getElementById(id); if(e) e.remove();});
   Object.assign(S,{mode:S.def, sheetShown:false, expr:[], afterEq:false, lastResult:null, lastValid:0, history:[], log:[], bsCount:0, eqCount:0, first:null, menuOpen:false, settings:null});
-  paint(); log('reset',{variant:S.variant, mode:S.def, presel:S.presel, probe:S.probe}); mark('m='+S.mode);   // mission start: which mode this task really runs in
+  document.getElementById('nudge').classList.remove('on'); paint(); log('reset',{variant:S.variant, mode:S.def, presel:S.presel, probe:S.probe}); mark('m='+S.mode);   // mission start: which mode this task really runs in
   if(!S.probe && P.sheet!=='0') showSheet(); else S.sheetShown=true;
 }
-document.addEventListener('keydown',e=>{ if(S.settings||document.getElementById('sheet')) return; const map={'Enter':'=','=':'=','Backspace':'⌫','Escape':'ac','*':'×','/':'÷','-':'−','+':'+','(':'(',')':')','.':',',',':','}; const k=map[e.key]||(/^[0-9]$/.test(e.key)?e.key:null); if(k){ e.preventDefault(); press(k);} });
+document.addEventListener('keydown',e=>{ if(S.settings||document.getElementById('sheet')) return; const map={'Enter':'=','=':'=','Backspace':'⌫','Escape':'ac','*':'×','/':'÷','-':'−','+':'+','(':'(',')':')','.':'.',',':'.'}; const k=map[e.key]||(/^[0-9]$/.test(e.key)?e.key:null); if(k){ e.preventDefault(); press(k);} });
 
 document.getElementById('devVariant').value=S.variant; document.getElementById('devDefault').value=S.presel; buildKeys(); reset();
 })();
