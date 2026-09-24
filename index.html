@@ -105,8 +105,17 @@ body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,
 .hint{font-size:13px;color:var(--ink2);padding:0 32px}
 .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:110px;background:rgba(28,28,30,.9);color:#fff;font-size:13px;padding:8px 14px;border-radius:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
 .toast.on{opacity:1}
-.nudge{align-self:center;margin-bottom:auto;margin-top:4px;height:26px;display:flex;align-items:center;padding:0 12px;border-radius:13px;background:rgba(120,120,128,.14);color:var(--ink2);font-size:13px;visibility:hidden;pointer-events:none}
-.nudge.on{visibility:visible}
+.es-scrim{position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:15;opacity:0;pointer-events:none;transition:opacity .2s}
+.es-scrim.on{opacity:1;pointer-events:auto}
+.endsheet{position:absolute;left:0;right:0;bottom:0;z-index:16;background:#F2F2F7;border-radius:22px 22px 0 0;padding:8px 20px max(20px,env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;box-shadow:0 -8px 30px rgba(0,0,0,.12);transform:translateY(110%);transition:transform .25s ease}
+.endsheet.on{transform:translateY(0)}
+.endsheet .grab{width:36px;height:5px;border-radius:3px;background:#C7C7CC;align-self:center}
+.endsheet p{margin:0;font-size:17px;line-height:1.35;text-align:center;color:var(--ink)}
+.es-keep{height:50px;border-radius:25px;border:0;background:rgba(120,120,128,.16);color:var(--blue);font-size:17px;font-weight:600;font-family:inherit;cursor:pointer}
+.es-pointer{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);align-self:flex-start}
+.es-pointer svg{animation:esbob 1.1s ease-in-out infinite}
+@keyframes esbob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+@media (prefers-reduced-motion:reduce){.es-pointer svg{animation:none}.endsheet,.es-scrim{transition:none}}
 pre.log{width:100%;max-width:760px;max-height:180px;overflow:auto;font:11px ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;margin:0;color:var(--ink2)}
 @media (max-width:500px){
 :root,html{padding:0!important}
@@ -140,7 +149,6 @@ body{padding:0!important;min-height:100dvh;height:100dvh;overflow:hidden}
     </div>
   </div>
   <div class="display">
-    <div class="nudge" id="nudge" aria-live="polite">Got your answer? Tap End task.</div>
     <div class="expr" id="expr" aria-live="off"><span></span></div>
     <div class="row2">
       <div class="badges">
@@ -152,6 +160,12 @@ body{padding:0!important;min-height:100dvh;height:100dvh;overflow:hidden}
   </div>
   <div class="keys" id="keys"></div>
   <div class="toast" id="toast"></div>
+  <div class="es-scrim" id="esScrim"></div>
+  <div class="endsheet" id="endSheet" role="dialog" aria-modal="false" aria-labelledby="esText" aria-hidden="true">
+    <div class="grab"></div>
+    <p id="esText">When you have your answer, tap <b>End Task</b> in the Maze panel to continue.</p>
+    <button class="es-keep" id="esKeep" type="button">Keep calculating</button>
+  </div>
 </div>
 <pre class="log" id="logView" hidden></pre>
 
@@ -379,9 +393,9 @@ function press(key){
       }
     }
   }
-  else if(key==='ac'){ S.expr=[]; S.afterEq=false; S.lastValid=0; document.getElementById('nudge').classList.remove('on'); }   // nudge hides on ac, returns on the next =
+  else if(key==='ac'){ S.expr=[]; S.afterEq=false; S.lastValid=0; }
   else if(key==='='){
-    S.eqCount++; if(P.nudge!=='0') document.getElementById('nudge').classList.add('on');   // neutral End-task nudge, shown after any =
+    S.eqCount++;
     if(S.probe && S.first===null){ S.first='other'; log('probe_first',{kind:'other'}); mark('first=other'); }
     if(!S.expr.length) return;
     if(hasEmptySlot(S.expr)){ flash(); toast('Enter a number'); log('equals_refused_empty_slot',{before, n:S.eqCount}); return; }
@@ -392,7 +406,7 @@ function press(key){
     S.history.push({expr: JSON.parse(JSON.stringify(S.expr)), result: v, mode:S.mode});
     log('equals',{expr: shown, result: fmt(v), backspaces:S.bsCount, n:S.eqCount}); S.bsCount=0;
     if(!S.probe) mark('res='+asciiNum(v));   // v5: no &n= — Maze direct vs indirect success = first vs later attempt; n stays in the log
-    paint(); return;
+    paint(); showEndSheet(); return;
   }
   else { log('inert_key',{key}); }
   paint();
@@ -487,7 +501,7 @@ function closeSettings(){ const e=document.getElementById('settings'); if(e) e.r
    ?presel=fn|num   sheet preselection (default fn — the Remote Config candidate)
    ?probe=1         cold-probe diagnostic state: accepts both orders, renders as typed, pull-down hidden, writes #first=
    ?dev=0           hide the dev bar
-   ?nudge=0         hide the 'Got your answer? Tap End task.' nudge
+   ?nudge=0         never show the End Task bottom sheet
    ?markq=0         write markers to the hash instead of query params (v5 default = query params) */
 const Q = new URLSearchParams(location.search);
 const P = { mode: Q.get('mode'), sheet: Q.get('sheet'), variant: Q.get('variant'), dev: Q.get('dev'), probe: Q.get('probe'), presel: Q.get('presel'), markq: Q.get('markq'), nudge: Q.get('nudge') };
@@ -505,6 +519,12 @@ function mark(tag){ // Maze reads the URL for mission success. Hash by default; 
     else history.replaceState(null,'', location.pathname+location.search+'#'+tag);
   }catch(e){}
 }
+/* End Task bottom sheet (v8): after every committed = (right or wrong), never blocks retrying */
+function showEndSheet(){ if(P.nudge==='0') return; const sh=document.getElementById('endSheet'); sh.classList.add('on'); sh.setAttribute('aria-hidden','false'); document.getElementById('esScrim').classList.add('on'); log('end_sheet_shown',{n:S.eqCount}); setTimeout(()=>{ try{ document.getElementById('esKeep').focus({preventScroll:true}); }catch(e){} },260); }
+function hideEndSheet(via){ const sh=document.getElementById('endSheet'); if(!sh) return; const was=sh.classList.contains('on'); sh.classList.remove('on'); sh.setAttribute('aria-hidden','true'); document.getElementById('esScrim').classList.remove('on'); if(was && via) log('end_sheet_dismissed',{via}); }
+document.getElementById('esKeep').addEventListener('click',()=>hideEndSheet('keep'));
+document.getElementById('esScrim').addEventListener('click',()=>hideEndSheet('scrim'));
+(()=>{ let y0=null; const sh=document.getElementById('endSheet'); sh.addEventListener('touchstart',e=>{y0=e.touches[0].clientY;},{passive:true}); sh.addEventListener('touchend',e=>{ if(y0!==null && e.changedTouches[0].clientY-y0>50) hideEndSheet('swipe'); y0=null; }); })();
 /* dev bar */
 document.getElementById('devReset').addEventListener('click',reset);
 document.getElementById('devVariant').addEventListener('change',e=>{ S.variant=e.target.value; reset(); });
@@ -514,10 +534,10 @@ document.getElementById('devToggleLog').addEventListener('click',e=>{ const v=do
 function reset(){
   closeMenu(); closeSettings(); ['scrim','sheet'].forEach(id=>{const e=document.getElementById(id); if(e) e.remove();});
   Object.assign(S,{mode:S.def, sheetShown:false, expr:[], afterEq:false, lastResult:null, lastValid:0, history:[], log:[], bsCount:0, eqCount:0, first:null, menuOpen:false, settings:null});
-  document.getElementById('nudge').classList.remove('on'); paint(); log('reset',{variant:S.variant, mode:S.def, presel:S.presel, probe:S.probe}); mark('m='+S.mode);   // mission start: which mode this task really runs in
+  hideEndSheet(); paint(); log('reset',{variant:S.variant, mode:S.def, presel:S.presel, probe:S.probe}); mark('m='+S.mode);   // mission start: which mode this task really runs in
   if(!S.probe && P.sheet!=='0') showSheet(); else S.sheetShown=true;
 }
-document.addEventListener('keydown',e=>{ if(S.settings||document.getElementById('sheet')) return; const map={'Enter':'=','=':'=','Backspace':'⌫','Escape':'ac','*':'×','/':'÷','-':'−','+':'+','(':'(',')':')','.':'.',',':'.'}; const k=map[e.key]||(/^[0-9]$/.test(e.key)?e.key:null); if(k){ e.preventDefault(); press(k);} });
+document.addEventListener('keydown',e=>{ if(S.settings||document.getElementById('sheet')||document.getElementById('endSheet').classList.contains('on')) return; const map={'Enter':'=','=':'=','Backspace':'⌫','Escape':'ac','*':'×','/':'÷','-':'−','+':'+','(':'(',')':')','.':'.',',':'.'}; const k=map[e.key]||(/^[0-9]$/.test(e.key)?e.key:null); if(k){ e.preventDefault(); press(k);} });
 
 document.getElementById('devVariant').value=S.variant; document.getElementById('devDefault').value=S.presel; buildKeys(); reset();
 })();
