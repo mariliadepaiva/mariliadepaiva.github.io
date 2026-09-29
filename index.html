@@ -30,7 +30,7 @@
 <meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Function Input Prototype</title>
 <style id="theme">
-:root{--bg:#E9E9EC;--phone:#F2F2F4;--ink:#1C1C1E;--ink2:#6E6E73;--muted:#B0B0B5;--line:#C9C9CD;--key-sci:#B5B5B8;--key-op:#A3A3A6;--key-num:#E9E9EB;--orange:#FF7A3D;--blue:#0A84FF;--white:#fff;--sep:rgba(60,60,67,.29)}
+:root{--bg:#E9E9EC;--phone:#F2F2F4;--ink:#1C1C1E;--ink2:#6E6E73;--muted:#B0B0B5;--line:#C9C9CD;--key-sci:#A8A8AC;--key-op:#A8A8AC;--key-num:#FBFBFB;--orange:#F5915E;--blue:#0A84FF;--white:#fff;--sep:rgba(60,60,67,.29)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px;min-height:100vh}
 .dev{width:100%;max-width:760px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--ink2)}
@@ -57,15 +57,18 @@ body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,
 .pd.col .lbl{display:none}
 .pd svg{flex:none}
 .res{font-size:56px;line-height:1;text-align:right;white-space:nowrap;min-width:0}
-.keys{display:flex;flex-direction:column;gap:8px;padding:0 12px 12px}
-.krow{display:flex;gap:8px}
-.k{flex:1;display:flex;align-items:center;justify-content:center;border-radius:22px;font-size:13px;height:38px;background:var(--key-sci);color:var(--ink);cursor:pointer;border:0;font-family:inherit}
+.keys{display:flex;flex-direction:column;gap:6px;padding:0 6px 8px}
+.krow{display:flex;gap:6px}
+.k{flex:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:14px;height:44px;background:var(--key-sci);color:var(--ink);cursor:pointer;border:0;font-family:inherit}
+.k.it{font-style:italic;font-family:"Times New Roman",Georgia,serif;font-size:15px}
 .k:active{filter:brightness(.92)}
-.k.i{opacity:.55}
-.main{display:flex;flex-direction:column;gap:8px;margin-top:4px}
-.main .k{height:50px;border-radius:25px;font-size:28px;background:var(--key-num)}
-.main .k.op{background:var(--orange);color:#fff}
-.main .k.g{background:var(--key-op)}
+.k.i{opacity:1}
+.main{display:flex;flex-direction:column;gap:3px;margin-top:4px}
+.main .krow{gap:3px}
+.main .k{height:50px;border-radius:8px;font-size:30px;font-weight:300;background:var(--key-num)}
+.main .k.op{background:var(--key-op);color:var(--ink)}
+.main .k.eq{background:var(--orange);color:var(--ink)}
+.main .k.g{background:var(--key-op);font-size:26px}
 .main .k.s{font-size:24px}
 /* menu */
 .dim{position:absolute;inset:0;background:transparent}
@@ -124,7 +127,7 @@ body{padding:0!important;min-height:100dvh;height:100dvh;overflow:hidden}
 .top{height:auto;padding-top:6px}
 .display{min-height:0;flex:1 1 auto}
 .keys{flex:none;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))}
-.k{height:clamp(28px,4.6dvh,38px)}
+.k{height:clamp(30px,5.3dvh,44px)}
 .main .k{height:clamp(38px,6.2dvh,50px)}
 .settings{padding-top:env(safe-area-inset-top,0px)}
 .sheet{padding-bottom:max(20px,env(safe-area-inset-bottom,0px))}
@@ -144,7 +147,7 @@ body{padding:0!important;min-height:100dvh;height:100dvh;overflow:hidden}
   <div class="top">
     <div class="pill">Scientific</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <div class="pill icons"><span>m</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+      <div class="pill icons"><span>M</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
       <div class="pill round" id="moreBtn" title="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="#1C1C1E"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></div>
     </div>
   </div>
@@ -416,12 +419,13 @@ function isTermAt(list,i){ return i>=0 && isTerm(list[i]) && !(list[i].t==='num'
 function flash(){ const e=document.getElementById('expr'); e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); }
 
 /* ---------------- keypad ---------------- */
-const SCI = [['(',')','mc','m+','m-','mr'],['⇧','x²','x³','xʸ','eˣ','10ˣ'],['¹⁄ₓ','√x','∛x','ʸ√x','ln','log₁₀'],['x!','sin','cos','tan','e','EE'],['Rand','sinh','cosh','tanh','π','Deg']];
-const INERT = new Set(['mc','m+','m-','mr','⇧','eˣ','10ˣ','ʸ√x','EE','Rand','Deg']);
-const MAIN = [[['ac','g s'],['⁺∕₋','g s'],['%','g s'],['÷','op']],[['7'],['8'],['9'],['×','op']],[['4'],['5'],['6'],['−','op']],[['1'],['2'],['3'],['+','op']],[['0'],['.'],['⌫','s'],['=','op']]];
+const SCI = [['(',')','mc','m+','m-','mr'],['⇧','x²','x³','xʸ','eˣ','10ˣ'],['¹⁄ₓ','√x','∛x','ʸ√x','ln','log₁₀'],['x!','sin','cos','tan','e','EE'],['Rand','sinh','cosh','tanh','π','Rad']];
+const INERT = new Set(['mc','m+','m-','mr','⇧','eˣ','10ˣ','ʸ√x','EE','Rand','Rad']);
+const MAIN = [[['ac','g s'],['⁺∕₋','g s'],['%','g s'],['÷','op']],[['7'],['8'],['9'],['×','op']],[['4'],['5'],['6'],['−','op']],[['1'],['2'],['3'],['+','op']],[['0'],['.'],['⌫','s'],['=','op eq']]];
 function buildKeys(){
   const k=document.getElementById('keys'); let h='';
-  SCI.forEach(r=>{ h+='<div class="krow">'+r.map(x=>`<button class="k${INERT.has(x)?' i':''}" data-k="${x}" aria-label="${aria(x)}">${x}</button>`).join('')+'</div>'; });
+  const IT=new Set(['x²','x³','xʸ','eˣ','10ˣ','¹⁄ₓ','√x','∛x','ʸ√x','x!','e']);
+  SCI.forEach(r=>{ h+='<div class="krow">'+r.map(x=>`<button class="k${INERT.has(x)?' i':''}${IT.has(x)?' it':''}" data-k="${x}" aria-label="${aria(x)}">${x}</button>`).join('')+'</div>'; });
   h+='<div class="main">'+MAIN.map(r=>'<div class="krow">'+r.map(([x,c])=>`<button class="k ${c||''}" data-k="${x}" aria-label="${aria(x)}">${x}</button>`).join('')+'</div>').join('')+'</div>';
   k.innerHTML=h;
   k.addEventListener('click',e=>{ const b=e.target.closest('[data-k]'); if(!b) return; let key=b.dataset.k; if(key==='⁺∕₋'){ toggleSign(); return; } if(INERT.has(key)){ log('inert_key',{key}); return; } press(key); });
