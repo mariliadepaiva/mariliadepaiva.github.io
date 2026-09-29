@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Opening the test…</title>
+<style>
+  body{margin:0;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+       font:17px/1.4 -apple-system,system-ui,sans-serif;background:#fff;color:#1c1c1e;text-align:center;padding:16px}
+  @media (prefers-color-scheme:dark){body{background:#000;color:#f2f2f7}}
+  a{color:#0a84ff}
+</style>
+<script>
+/* TEAMPI-371 · TC pool 50/50 split
+   Random A/B per device, sticky so reopening lands on the same path.
+   Testing: add ?to=a or ?to=b to force a path. */
+(function(){
+  var A = 'https://t.maze.co/589300484?src=tc';   // TC A: Function first → Number first
+  var B = 'https://t.maze.co/591434462?src=tc';   // TC B: Number first → Function first
+  var KEY = 'teampi371_path';
+  var force = (new URLSearchParams(location.search).get('to') || '').toLowerCase();
+  var path = null;
+  if (force === 'a' || force === 'b') {
+    path = force;
+  } else {
+    try { path = localStorage.getItem(KEY); } catch(e) {}
+    if (path !== 'a' && path !== 'b') {
+      path = Math.random() < 0.5 ? 'a' : 'b';
+      try { localStorage.setItem(KEY, path); } catch(e) {}
+    }
+  }
+  var url = path === 'a' ? A : B;
+  window.__target = url;
+  location.replace(url);
+})();
+</script>
+</head>
+<body>
+  <p>Opening the test…<br>
+  <a id="fallback" href="https://t.maze.co/589300484?src=tc">Tap here if nothing happens</a></p>
+  <script>try{document.getElementById('fallback').href=window.__target;}catch(e){}</script>
+</body>
+</html>
